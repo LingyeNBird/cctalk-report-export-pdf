@@ -1,0 +1,5 @@
+paper_report.json
+paper_report.pdf
+.image_cache/
+.venv/
+__pycache__/
