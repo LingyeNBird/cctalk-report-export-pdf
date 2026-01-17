@@ -313,30 +313,186 @@ async function addQuestion(content, question) {
     });
   }
 
+  // 检测是否有图片选项
+  const hasImageOptions = options.some((opt) => {
+    const optText = opt.text || "";
+    // 如果选项文本是 URL，或者只有图片标签，则认为是图片选项
+    return (
+      optText.startsWith("http") ||
+      (optText.includes("<img") &&
+        !optText.replace(/<[^>]+>/g, "").trim())
+    );
+  });
+
+  // 构建选项内容数组
+  const optionItems = [];
+
   for (const opt of options) {
     const value = opt.value?.trim();
     const optText = htmlToText(opt.text || "");
-    const line = `${value}. ${optText}`.trim();
     const isCorrect = value && answers.has(value);
 
-    const optionContent = formatOptionText(
-      line,
-      isCorrect,
-    );
-    if (
-      typeof optionContent === "object" &&
-      optionContent.text
-    ) {
-      content.push({
-        text: optionContent,
-        style: "option",
+    // 检测是否为图片选项
+    const isImageOption =
+      optText.startsWith("http") ||
+      (opt.text &&
+        opt.text.includes("<img") &&
+        !opt.text.replace(/<[^>]+>/g, "").trim());
+
+    if (isImageOption) {
+      // 图片选项
+      const imageUrl = opt.text.startsWith("http")
+        ? opt.text.trim()
+        : opt.text.match(
+            /src=["']([^"']+)["']/,
+          )?.[1] || "";
+
+      optionItems.push({
+        type: "image",
+        value: value,
+        url: imageUrl,
+        isCorrect: isCorrect,
       });
     } else {
-      content.push({
-        text: optionContent,
-        color: isCorrect ? "#1B8A3B" : undefined,
-        style: "option",
+      // 文本选项
+      const line = `${value}. ${optText}`.trim();
+      optionItems.push({
+        type: "text",
+        value: line,
+        isCorrect: isCorrect,
       });
+    }
+  }
+
+  // 渲染选项
+  if (hasImageOptions) {
+    // 图片选项：使用两列表格布局
+    const tableBody = [];
+    for (
+      let i = 0;
+      i < optionItems.length;
+      i += 2
+    ) {
+      const row = [];
+
+      for (
+        let j = 0;
+        j < 2 && i + j < optionItems.length;
+        j++
+      ) {
+        const item = optionItems[i + j];
+
+        if (item.type === "image") {
+          // 图片选项
+          const imageDataUrl =
+            await downloadImageAsDataURL(
+              item.url,
+            );
+          if (imageDataUrl) {
+            const imgDimensions =
+              await getImageDimensions(
+                imageDataUrl,
+              );
+            const maxWidth = 180; // 每列最大宽度
+            let width =
+              imgDimensions.width || maxWidth;
+            let height =
+              imgDimensions.height || "auto";
+
+            // 缩放图片
+            if (width > maxWidth) {
+              const ratio = width / height;
+              width = maxWidth;
+              height = width / ratio;
+            }
+
+            row.push({
+              stack: [
+                {
+                  text: `${item.value}.`,
+                  fontSize: 10.5,
+                  margin: [0, 0, 0, 4],
+                },
+                {
+                  image: imageDataUrl,
+                  width: width,
+                  height: height,
+                  alignment: "center",
+                  border: item.isCorrect
+                    ? [1, 1, 1, 1]
+                    : undefined,
+                  borderColor: item.isCorrect
+                    ? "#1B8A3B"
+                    : undefined,
+                },
+              ],
+              alignment: "center",
+            });
+          } else {
+            // 图片下载失败，显示占位符
+            row.push({
+              text: `${item.value}. [图片: ${item.url}]`,
+              fontSize: 9,
+              color: "#999999",
+              margin: [12, 4, 0, 4],
+            });
+          }
+        } else {
+          // 文本选项（在图片选项混用的情况下）
+          const text = formatOptionText(
+            item.value,
+            item.isCorrect,
+          );
+          row.push({
+            text: text,
+            style: "option",
+            margin: [12, 4, 0, 4],
+          });
+        }
+      }
+
+      tableBody.push(row);
+    }
+
+    content.push({
+      table: {
+        widths: ["*", "*"],
+        body: tableBody,
+      },
+      layout: {
+        hLineWidth: () => 0,
+        vLineWidth: () => 0,
+        paddingLeft: function (i) {
+          // 第一列不添加左边距，第二列添加 20pt
+          return i === 0 ? 0 : 20;
+        },
+      },
+      margin: [0, 4, 0, 8],
+    });
+  } else {
+    // 全是文本选项，逐个添加
+    for (const item of optionItems) {
+      const optionContent = formatOptionText(
+        item.value,
+        item.isCorrect,
+      );
+      if (
+        typeof optionContent === "object" &&
+        optionContent.text
+      ) {
+        content.push({
+          text: optionContent,
+          style: "option",
+        });
+      } else {
+        content.push({
+          text: optionContent,
+          color: item.isCorrect
+            ? "#1B8A3B"
+            : undefined,
+          style: "option",
+        });
+      }
     }
   }
 
@@ -412,5 +568,146 @@ function addQuestionGap(content) {
   content.push({
     text: "",
     margin: [0, 8, 0, 0],
+  });
+}
+
+/**
+ * 下载图片并转换为 Data URL
+ * @param {string} url - 图片 URL
+ * @param {number} timeout - 超时时间（毫秒）
+ * @returns {Promise<string|null>} Data URL 或 null
+ */
+async function downloadImageAsDataURL(
+  url,
+  timeout = 30000,
+) {
+  console.log(
+    "[CCTALK Export] downloadImageAsDataURL called with URL:",
+    url,
+  );
+
+  if (!url || !url.startsWith("http")) {
+    console.log(
+      "[CCTALK Export] Invalid URL, returning null",
+    );
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    timeout,
+  );
+
+  try {
+    console.log(
+      "[CCTALK Export] Fetching image from:",
+      url,
+    );
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+
+    clearTimeout(timeoutId);
+
+    console.log(
+      "[CCTALK Export] Response status:",
+      response.status,
+    );
+
+    if (!response.ok) {
+      console.warn(
+        "[CCTALK Export] Image download failed:",
+        url,
+        response.status,
+      );
+      return null;
+    }
+
+    const blob = await response.blob();
+    console.log(
+      "[CCTALK Export] Blob received, size:",
+      blob.size,
+      "type:",
+      blob.type,
+    );
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result;
+        console.log(
+          "[CCTALK Export] Data URL created, length:",
+          dataUrl ? dataUrl.length : 0,
+        );
+        resolve(dataUrl);
+      };
+      reader.onerror = () => {
+        console.warn(
+          "[CCTALK Export] Failed to convert image to data URL:",
+          url,
+        );
+        resolve(null);
+      };
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.warn(
+      "[CCTALK Export] Failed to download image:",
+      url,
+      error.message,
+    );
+    return null;
+  }
+}
+
+/**
+ * 获取图片尺寸
+ * @param {string} dataUrl - 图片的 Data URL
+ * @returns {Promise<{width: number, height: number}>} 图片尺寸
+ */
+function getImageDimensions(dataUrl) {
+  console.log(
+    "[CCTALK Export] getImageDimensions called, dataUrl length:",
+    dataUrl ? dataUrl.length : 0,
+  );
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    const timeout = setTimeout(() => {
+      console.warn(
+        "[CCTALK Export] Image load timeout, using default dimensions",
+      );
+      resolve({ width: 400, height: 300 });
+    }, 10000);
+
+    img.onload = () => {
+      clearTimeout(timeout);
+      console.log(
+        "[CCTALK Export] Image loaded successfully, dimensions:",
+        img.width,
+        "x",
+        img.height,
+      );
+      resolve({
+        width: img.width,
+        height: img.height,
+      });
+    };
+
+    img.onerror = (error) => {
+      clearTimeout(timeout);
+      console.warn(
+        "[CCTALK Export] Failed to load image, error:",
+        error,
+      );
+      resolve({ width: 400, height: 300 });
+    };
+
+    img.src = dataUrl;
+    console.log(
+      "[CCTALK Export] Image src set, waiting for load...",
+    );
   });
 }

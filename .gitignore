@@ -4,3 +4,4 @@ paper_report.pdf
 .venv/
 __pycache__/
 .opencode/
+.log/

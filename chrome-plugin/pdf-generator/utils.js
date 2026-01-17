@@ -13,7 +13,50 @@ function htmlToText(html) {
     html,
     "text/html",
   );
-  let text = doc.body.textContent || "";
+
+  // 递归遍历 DOM 树，提取文本并处理图片
+  function extractText(node) {
+    let result = "";
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      result = node.textContent;
+    } else if (
+      node.nodeType === Node.ELEMENT_NODE
+    ) {
+      const tagName = node.tagName.toLowerCase();
+
+      // 处理图片标签
+      if (tagName === "img") {
+        const alt =
+          node.getAttribute("alt") || "";
+        const src =
+          node.getAttribute("src") || "";
+        const label = alt || src;
+        if (label) {
+          result = `[图片: ${label}]`;
+        }
+      }
+      // 处理块级元素（添加换行）
+      else if (
+        ["p", "div", "li", "br"].includes(tagName)
+      ) {
+        for (const child of node.childNodes) {
+          result += extractText(child);
+        }
+        result += "\n";
+      }
+      // 处理其他元素
+      else {
+        for (const child of node.childNodes) {
+          result += extractText(child);
+        }
+      }
+    }
+
+    return result;
+  }
+
+  let text = extractText(doc.body);
 
   // 清理空白字符
   text = text.replace(/\xa0/g, " ");
@@ -58,7 +101,15 @@ async function downloadImageAsDataURL(
   url,
   timeout = 30000,
 ) {
+  console.log(
+    "[CCTALK Export] downloadImageAsDataURL called with URL:",
+    url,
+  );
+
   if (!url || !url.startsWith("http")) {
+    console.log(
+      "[CCTALK Export] Invalid URL, returning null",
+    );
     return null;
   }
 
@@ -69,12 +120,21 @@ async function downloadImageAsDataURL(
   );
 
   try {
+    console.log(
+      "[CCTALK Export] Fetching image from:",
+      url,
+    );
     const response = await fetch(url, {
       signal: controller.signal,
       headers: { "User-Agent": "Mozilla/5.0" },
     });
 
     clearTimeout(timeoutId);
+
+    console.log(
+      "[CCTALK Export] Response status:",
+      response.status,
+    );
 
     if (!response.ok) {
       console.warn(
@@ -86,11 +146,23 @@ async function downloadImageAsDataURL(
     }
 
     const blob = await response.blob();
+    console.log(
+      "[CCTALK Export] Blob received, size:",
+      blob.size,
+      "type:",
+      blob.type,
+    );
 
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () =>
-        resolve(reader.result);
+      reader.onloadend = () => {
+        const dataUrl = reader.result;
+        console.log(
+          "[CCTALK Export] Data URL created, length:",
+          dataUrl ? dataUrl.length : 0,
+        );
+        resolve(dataUrl);
+      };
       reader.onerror = () => {
         console.warn(
           "[CCTALK Export] Failed to convert image to data URL:",
@@ -120,12 +192,24 @@ async function processTextWithImages(
   text,
   maxWidth = 400,
 ) {
+  console.log(
+    "[CCTALK Export] processTextWithImages called, text length:",
+    text.length,
+  );
+
   const elements = [];
   const pattern = /\[图片:\s*([^\]]*)\]/g;
   let lastIndex = 0;
   let match;
+  let matchCount = 0;
 
   while ((match = pattern.exec(text)) !== null) {
+    matchCount++;
+    console.log(
+      `[CCTALK Export] Found image match #${matchCount}:`,
+      match[1].trim(),
+    );
+
     // 添加图片前的文本
     const textBefore = text.substring(
       lastIndex,
@@ -142,16 +226,27 @@ async function processTextWithImages(
     const imageUrl = normalizeImageUrl(
       match[1].trim(),
     );
+    console.log(
+      "[CCTALK Export] Normalized image URL:",
+      imageUrl,
+    );
+
     const imageDataUrl =
       await downloadImageAsDataURL(imageUrl);
 
     if (imageDataUrl) {
+      console.log(
+        "[CCTALK Export] Image download successful, adding to elements",
+      );
       elements.push({
         type: "image",
         value: imageDataUrl,
         url: imageUrl,
       });
     } else {
+      console.log(
+        "[CCTALK Export] Image download failed, adding placeholder",
+      );
       // 下载失败，显示占位符文本
       elements.push({
         type: "text",
@@ -172,6 +267,12 @@ async function processTextWithImages(
     });
   }
 
+  console.log(
+    "[CCTALK Export] processTextWithImages completed, total elements:",
+    elements.length,
+    "images found:",
+    matchCount,
+  );
   return elements;
 }
 
@@ -181,32 +282,47 @@ async function processTextWithImages(
  * @returns {Promise<{width: number, height: number}>} 图片尺寸
  */
 function getImageDimensions(dataUrl) {
+  console.log(
+    "[CCTALK Export] getImageDimensions called, dataUrl length:",
+    dataUrl ? dataUrl.length : 0,
+  );
+
   return new Promise((resolve) => {
     const img = new Image();
     const timeout = setTimeout(() => {
       console.warn(
-        "[CCTALK Export] Image load timeout",
+        "[CCTALK Export] Image load timeout, using default dimensions",
       );
       resolve({ width: 400, height: 300 });
     }, 10000);
 
     img.onload = () => {
       clearTimeout(timeout);
+      console.log(
+        "[CCTALK Export] Image loaded successfully, dimensions:",
+        img.width,
+        "x",
+        img.height,
+      );
       resolve({
         width: img.width,
         height: img.height,
       });
     };
 
-    img.onerror = () => {
+    img.onerror = (error) => {
       clearTimeout(timeout);
       console.warn(
-        "[CCTALK Export] Failed to load image",
+        "[CCTALK Export] Failed to load image, error:",
+        error,
       );
       resolve({ width: 400, height: 300 });
     };
 
     img.src = dataUrl;
+    console.log(
+      "[CCTALK Export] Image src set, waiting for load...",
+    );
   });
 }
 
@@ -220,17 +336,29 @@ async function elementsToPdfContent(
   elements,
   maxWidth = 400,
 ) {
+  console.log(
+    "[CCTALK Export] elementsToPdfContent called with",
+    elements.length,
+    "elements",
+  );
   const content = [];
 
   for (const element of elements) {
     if (element.type === "text") {
       if (element.value.trim()) {
+        console.log(
+          "[CCTALK Export] Adding text element:",
+          element.value.substring(0, 50),
+        );
         content.push({
           text: element.value,
           ...(element.style || {}),
         });
       }
     } else if (element.type === "image") {
+      console.log(
+        "[CCTALK Export] Adding image element",
+      );
       // 等待图片加载以获取尺寸
       const imgDimensions =
         await getImageDimensions(element.value);
@@ -239,11 +367,24 @@ async function elementsToPdfContent(
       let width = imgDimensions.width || maxWidth;
       let height = imgDimensions.height || "auto";
 
+      console.log(
+        "[CCTALK Export] Image dimensions:",
+        width,
+        "x",
+        height,
+      );
+
       // 如果图片超过最大宽度，按比例缩放
       if (width > maxWidth) {
         const ratio = width / height;
         width = maxWidth;
         height = width / ratio;
+        console.log(
+          "[CCTALK Export] Scaled image to:",
+          width,
+          "x",
+          height,
+        );
       }
 
       content.push({
@@ -251,10 +392,15 @@ async function elementsToPdfContent(
         width: width,
         height: height,
         margin: [0, 2, 0, 2],
+        alignment: "center",
       });
     }
   }
 
+  console.log(
+    "[CCTALK Export] elementsToPdfContent completed, total items:",
+    content.length,
+  );
   return content;
 }
 
