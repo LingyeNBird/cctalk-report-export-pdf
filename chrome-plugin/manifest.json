@@ -8,7 +8,12 @@
   "content_scripts": [
     {
       "matches": ["https://*.cctalk.com/*"],
-      "js": ["lib/pdfmake/pdfmake.min.js", "pdf-generator/utils.js", "pdf-generator/generate.js", "content/content.js"],
+      "js": [
+        "lib/pdfmake/pdfmake.min.js",
+        "pdf-generator/utils.js",
+        "pdf-generator/generate.js",
+        "content/content.js"
+      ],
       "run_at": "document_idle"
     }
   ],

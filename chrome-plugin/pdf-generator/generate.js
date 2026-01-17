@@ -10,7 +10,7 @@ async function generatePDF(data) {
     throw new Error('pdfMake library not loaded');
   }
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const pdf = pdfMake.createPdf(docDefinition);
     const filename = sanitizeFilename(actualData.title) || 'paper_report.pdf';
 
@@ -20,10 +20,19 @@ async function generatePDF(data) {
         downloadPDF(blob, filename);
         resolve();
       } catch (error) {
-        reject(error);
+        throw error;
       }
     });
   });
+}
+
+function addCustomFontToPdfMake() {
+  if (pdfMake && pdfMake.vfs) {
+    console.log('[CCTALK Export] Using font from vfs_fonts.js');
+    return;
+  }
+
+  console.log('[CCTALK Export] pdfMake or vfs_fonts not available');
 }
 
 function downloadPDF(pdfBlob, filename) {
