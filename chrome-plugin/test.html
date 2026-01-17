@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>CCTALK API 测试</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    h1 { color: #333; }
+    .test-section {
+      margin: 20px 0;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    .test-section h2 { margin-top: 0; }
+    input, button {
+      padding: 10px;
+      margin: 5px 0;
+    }
+    input {
+      width: 300px;
+    }
+    button {
+      background: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #3367d6;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .success { background: #e8f5e9; border-color: #c3e6cb; }
+    .error { background: #ffebee; border-color: #f8d7da; }
+  </style>
+</head>
+<body>
+  <h1>CCTALK API 测试工具</h1>
+
+  <div class="test-section">
+    <h2>测试 1: 主 URL</h2>
+    <button onclick="testMainUrl()">测试主 URL</button>
+  </div>
+
+  <div class="test-section">
+    <h2>测试 2: 备选 URL</h2>
+    <button onclick="testAltUrl()">测试备选 URL</button>
+  </div>
+
+  <div class="test-section">
+    <h2>测试 3: 自定义 URL</h2>
+    <input type="text" id="customUrl" placeholder="输入完整 URL" style="width: 600px;">
+    <button onclick="testCustomUrl()">测试自定义 URL</button>
+  </div>
+
+  <div id="result">等待测试...</div>
+
+  <script>
+    function testMainUrl() {
+      var paperId = '44369';
+      var recordId = '2884287';
+      var signParam = 'npbsCw07WQBzZlV4FzzNwrWUxSLzIA6mcdskkoDHD4U=';
+      
+      var requestUrl = 'https://tiku.cctalk.com/webapi/question/v1/student/paper_report?paperId=' + paperId + '&recordId=' + recordId + '&sign=' + encodeURIComponent(signParam) + '&_timestamp=' + Date.now();
+      
+      makeRequest(requestUrl, '测试 1: 主 URL');
+    }
+
+    function testAltUrl() {
+      var paperId = '44369';
+      var recordId = '2884287';
+      var signParam = 'npbsCw07WQBzZlV4FzzNwrWUxSLzIA6mcdskkoDHD4U=';
+      
+      var requestUrl = 'https://tiku.cctalk.com/ams/api/paper_report?paperId=' + paperId + '&recordId=' + recordId + '&sign=' + encodeURIComponent(signParam);
+      
+      makeRequest(requestUrl, '测试 2: 备选 URL');
+    }
+
+    function testCustomUrl() {
+      var url = document.getElementById('customUrl').value;
+      if (!url) {
+        showResult('请输入 URL', 'error');
+        return;
+      }
+      makeRequest(url, '测试 3: 自定义 URL');
+    }
+
+    function makeRequest(url, label) {
+      showResult('正在请求: ' + url, '');
+      
+      var headers = {
+        'Accept': 'application/json',
+        'huijiang-app-key': 'pcweb',
+        'Referer': 'https://tiku.cctalk.com/ams/result'
+      };
+
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', url, true);
+      xhr.withCredentials = true;
+
+      for (var headerName in headers) {
+        xhr.setRequestHeader(headerName, headers[headerName]);
+      }
+
+      xhr.onload = function() {
+        console.log(label, 'XHR status:', xhr.status);
+        console.log(label, 'XHR responseText length:', xhr.responseText ? xhr.responseText.length : 0);
+        
+        if (xhr.status === 200) {
+          try {
+            var data = JSON.parse(xhr.responseText);
+            var summary = '成功!\n状态: ' + xhr.status + '\n数据: ' + JSON.stringify(data, null, 2);
+            
+            if (data && data.data && data.data.sections) {
+              summary += '\n分区数: ' + data.data.sections.length;
+              var totalQuestions = 0;
+              for (var i = 0; i < data.data.sections.length; i++) {
+                var questions = data.data.sections[i].questions;
+                if (questions) {
+                  totalQuestions += questions.length;
+                }
+              }
+              summary += '\n题目数: ' + totalQuestions;
+            }
+            
+            showResult(summary, 'success');
+          } catch (e) {
+            showResult('JSON 解析失败: ' + e.message + '\n响应: ' + xhr.responseText.substring(0, 500), 'error');
+          }
+        } else {
+          showResult('HTTP 错误: ' + xhr.status + '\n响应: ' + (xhr.responseText ? xhr.responseText.substring(0, 500) : '无响应'), 'error');
+        }
+      };
+
+      xhr.onerror = function() {
+        console.error(label, 'XHR onerror');
+        showResult('网络错误: 无法连接到服务器', 'error');
+      };
+
+      xhr.send();
+    }
+
+    function showResult(text, type) {
+      var resultDiv = document.getElementById('result');
+      resultDiv.textContent = text;
+      resultDiv.className = type;
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "CCTALK作业导出",
+  "version": "1.0.0",
+  "description": "一键导出CCTALK作业解析为PDF",
+  "permissions": ["activeTab", "downloads"],
+  "host_permissions": ["https://*.cctalk.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://*.cctalk.com/*"],
+      "js": ["lib/pdfmake/pdfmake.min.js", "pdf-generator/utils.js", "pdf-generator/generate.js", "content/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  }
+}
