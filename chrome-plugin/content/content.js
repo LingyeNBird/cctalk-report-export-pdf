@@ -7,171 +7,144 @@
     window.location.href,
   );
 
-  // Intercept XMLHttpRequest to capture paper_report API calls
-  (function () {
-    const originalOpen =
-      XMLHttpRequest.prototype.open;
-    const originalSend =
-      XMLHttpRequest.prototype.send;
-    const originalSetRequestHeader =
-      XMLHttpRequest.prototype.setRequestHeader;
+  // Function to fetch report data using current page URL parameters
+  function fetchReportData(callback) {
+    const urlParams = new URLSearchParams(
+      window.location.search,
+    );
+    const paperId = urlParams.get("paperId");
+    const recordId = urlParams.get("recordId");
+    const signParam = urlParams.get("sign");
 
-    XMLHttpRequest.prototype.open = function (
-      method,
-      url,
-      ...args
-    ) {
-      this._cctalkUrl = url;
-      this._cctalkMethod = method;
-      this._cctalkHeaders = {};
-      return originalOpen.apply(this, [
-        method,
-        url,
-        ...args,
-      ]);
+    console.log(
+      "[CCTALK Export] URL params parsed",
+    );
+    console.log(
+      "[CCTALK Export] paperId:",
+      paperId,
+    );
+    console.log(
+      "[CCTALK Export] recordId:",
+      recordId,
+    );
+    console.log(
+      "[CCTALK Export] sign:",
+      signParam,
+    );
+
+    if (!paperId || !recordId) {
+      console.error(
+        "[CCTALK Export] Missing required URL params",
+      );
+      callback(null);
+      return;
+    }
+
+    // Construct API URL with current timestamp
+    let requestUrl =
+      "https://tiku.cctalk.com/webapi/question/v1/student/paper_report?_timestamp=" +
+      Date.now();
+    requestUrl +=
+      "&paperId=" +
+      paperId +
+      "&recordId=" +
+      recordId;
+    if (signParam) {
+      requestUrl +=
+        "&sign=" + encodeURIComponent(signParam);
+    }
+
+    console.log(
+      "[CCTALK Export] Fetching data from:",
+      requestUrl,
+    );
+
+    const headers = {
+      Accept: "application/json",
+      "huijiang-app-key": "pcweb",
+      Referer: window.location.href,
     };
 
-    XMLHttpRequest.prototype.setRequestHeader =
-      function (header, value) {
-        if (this._cctalkHeaders) {
-          this._cctalkHeaders[header] = value;
-        }
-        return originalSetRequestHeader.apply(
-          this,
-          [header, value],
-        );
-      };
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", requestUrl, true);
+    xhr.withCredentials = true;
 
-    XMLHttpRequest.prototype.send = function (
-      ...args
-    ) {
-      const xhr = this;
+    for (const headerName in headers) {
+      xhr.setRequestHeader(
+        headerName,
+        headers[headerName],
+      );
+    }
 
-      // Check if this is a paper_report request
-      if (
-        xhr._cctalkUrl &&
-        xhr._cctalkUrl.includes("paper_report")
-      ) {
-        console.log(
-          "[CCTALK Export] Intercepting XHR request:",
-          xhr._cctalkUrl,
-        );
+    xhr.onload = function () {
+      console.log(
+        "[CCTALK Export] XHR status:",
+        xhr.status,
+      );
 
-        xhr.addEventListener("load", function () {
-          if (xhr.status === 200) {
-            try {
-              const data = JSON.parse(
-                xhr.responseText,
-              );
-              console.log(
-                "[CCTALK Export] Successfully intercepted paper_report data",
-              );
+      if (xhr.status === 200) {
+        try {
+          const data = JSON.parse(
+            xhr.responseText,
+          );
+          console.log(
+            "[CCTALK Export] Data fetched successfully",
+          );
 
-              if (data && data.data) {
-                window.cctalkReportData = data;
-
-                // Log summary
-                if (data.data.sections) {
-                  const sectionCount =
-                    data.data.sections.length;
-                  let totalQuestions = 0;
-                  for (
-                    let i = 0;
-                    i < sectionCount;
-                    i++
-                  ) {
-                    const questions =
-                      data.data.sections[i]
-                        .questions;
-                    if (questions) {
-                      totalQuestions +=
-                        questions.length;
-                    }
-                  }
-                  console.log(
-                    "[CCTALK Export] Cached data - Sections:",
-                    sectionCount,
-                    "Questions:",
-                    totalQuestions,
-                  );
-                }
+          if (
+            data &&
+            data.data &&
+            data.data.sections
+          ) {
+            const sectionCount =
+              data.data.sections.length;
+            let totalQuestions = 0;
+            for (
+              let i = 0;
+              i < sectionCount;
+              i++
+            ) {
+              const questions =
+                data.data.sections[i].questions;
+              if (questions) {
+                totalQuestions +=
+                  questions.length;
               }
-            } catch (e) {
-              console.error(
-                "[CCTALK Export] Failed to parse intercepted response:",
-                e,
-              );
             }
-          } else {
-            console.warn(
-              "[CCTALK Export] Intercepted request returned status:",
-              xhr.status,
+            console.log(
+              "[CCTALK Export] Sections:",
+              sectionCount,
+              "Questions:",
+              totalQuestions,
             );
           }
-        });
 
-        xhr.addEventListener(
-          "error",
-          function () {
-            console.error(
-              "[CCTALK Export] Intercepted request failed:",
-              xhr._cctalkUrl,
-            );
-          },
+          callback(data);
+        } catch (e) {
+          console.error(
+            "[CCTALK Export] JSON parse error:",
+            e,
+          );
+          callback(null);
+        }
+      } else {
+        console.error(
+          "[CCTALK Export] HTTP error:",
+          xhr.status,
         );
+        callback(null);
       }
-
-      return originalSend.apply(this, args);
     };
-  })();
 
-  // Also intercept fetch API as a backup
-  (function () {
-    const originalFetch = window.fetch;
-
-    window.fetch = function (...args) {
-      const [urlOrRequest, options] = args;
-      const url =
-        typeof urlOrRequest === "string"
-          ? urlOrRequest
-          : urlOrRequest.url;
-
-      if (url && url.includes("paper_report")) {
-        console.log(
-          "[CCTALK Export] Intercepting fetch request:",
-          url,
-        );
-
-        return originalFetch
-          .apply(this, args)
-          .then((response) => {
-            const clonedResponse =
-              response.clone();
-
-            clonedResponse
-              .json()
-              .then((data) => {
-                if (data && data.data) {
-                  window.cctalkReportData = data;
-                  console.log(
-                    "[CCTALK Export] Successfully intercepted fetch paper_report data",
-                  );
-                }
-              })
-              .catch((e) => {
-                console.warn(
-                  "[CCTALK Export] Failed to parse fetch response:",
-                  e,
-                );
-              });
-
-            return response;
-          });
-      }
-
-      return originalFetch.apply(this, args);
+    xhr.onerror = function () {
+      console.error(
+        "[CCTALK Export] XHR network error",
+      );
+      callback(null);
     };
-  })();
+
+    xhr.send();
+  }
 
   // Message listener for popup communication
   chrome.runtime.onMessage.addListener(
@@ -184,21 +157,35 @@
       if (request.action === "getReportData") {
         const data = window.cctalkReportData;
 
-        if (data) {
+        if (!data) {
           console.log(
-            "[CCTALK Export] Returning cached data",
+            "[CCTALK Export] No cached data, fetching from API...",
+          );
+          fetchReportData(function (result) {
+            const finalData = result;
+            if (finalData) {
+              window.cctalkReportData = finalData;
+            }
+            console.log(
+              "[CCTALK Export] Final result:",
+              finalData ? "found" : "not found",
+            );
+            sendResponse({
+              data: finalData,
+              exists: !!finalData,
+            });
+          });
+        } else {
+          console.log(
+            "[CCTALK Export] Using cached data",
+          );
+          console.log(
+            "[CCTALK Export] Final result:",
+            data ? "found" : "not found",
           );
           sendResponse({
             data: data,
             exists: true,
-          });
-        } else {
-          console.log(
-            "[CCTALK Export] No data available yet",
-          );
-          sendResponse({
-            data: null,
-            exists: false,
           });
         }
 
@@ -245,9 +232,6 @@
   );
 
   console.log(
-    "[CCTALK Export] XHR/Fetch interception installed",
-  );
-  console.log(
-    "[CCTALK Export] Message listener installed",
+    "[CCTALK Export] Content script initialized",
   );
 })();
