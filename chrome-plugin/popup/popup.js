@@ -272,21 +272,46 @@ document.addEventListener(
         const actualData =
           window.currentReportData.data ||
           window.currentReportData;
-        const docDefinition =
-          buildDocDefinition(actualData);
 
+        console.log(
+          "[CCTALK Export Popup] Calling buildDocDefinition...",
+        );
+        const docDefinition =
+          await buildDocDefinition(actualData);
+        console.log(
+          "[CCTALK Export Popup] buildDocDefinition returned, docDefinition:",
+          docDefinition,
+        );
+
+        console.log(
+          "[CCTALK Export Popup] Creating pdfMake PDF...",
+        );
         const pdf = pdfMake.createPdf(
           docDefinition,
+        );
+        console.log(
+          "[CCTALK Export Popup] PDF created",
         );
         const filename =
           sanitizeFilename(actualData.title) ||
           "paper_report.pdf";
 
+        console.log(
+          "[CCTALK Export Popup] Getting PDF buffer...",
+        );
         pdf.getBuffer((buffer) => {
+          console.log(
+            "[CCTALK Export Popup] PDF buffer received, size:",
+            buffer ? buffer.byteLength : "null",
+          );
           try {
             const blob = new Blob([buffer], {
               type: "application/pdf",
             });
+            console.log(
+              "[CCTALK Export Popup] Blob created, size:",
+              blob.size,
+            );
 
             // 使用 chrome.downloads API 下载
             const url = URL.createObjectURL(blob);

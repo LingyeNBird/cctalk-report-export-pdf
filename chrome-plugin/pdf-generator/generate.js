@@ -1,9 +1,19 @@
+// PDF 生成主函数
 async function generatePDF(data) {
+  console.log(
+    "[CCTALK Export] generatePDF called with data:",
+    data,
+  );
+
   if (!data) {
     throw new Error("No data provided");
   }
 
   const actualData = data.data || data;
+  console.log(
+    "[CCTALK Export] actualData:",
+    actualData,
+  );
 
   if (typeof pdfMake === "undefined") {
     throw new Error("pdfMake library not loaded");
@@ -23,10 +33,20 @@ async function generatePDF(data) {
     );
   }
 
+  console.log(
+    "[CCTALK Export] Calling buildDocDefinition...",
+  );
   const docDefinition =
-    buildDocDefinition(actualData);
+    await buildDocDefinition(actualData);
+  console.log(
+    "[CCTALK Export] docDefinition:",
+    JSON.stringify(docDefinition, null, 2),
+  );
 
   return new Promise((resolve) => {
+    console.log(
+      "[CCTALK Export] Creating PDF...",
+    );
     const pdf = pdfMake.createPdf(docDefinition);
     const filename =
       sanitizeFilename(actualData.title) ||
@@ -37,9 +57,17 @@ async function generatePDF(data) {
         const blob = new Blob([buffer], {
           type: "application/pdf",
         });
+        console.log(
+          "[CCTALK Export] Buffer created, size:",
+          buffer.byteLength,
+        );
         downloadPDF(blob, filename);
         resolve();
       } catch (error) {
+        console.error(
+          "[CCTALK Export] Error creating blob:",
+          error,
+        );
         throw error;
       }
     });
@@ -90,7 +118,11 @@ function downloadPDF(pdfBlob, filename) {
   );
 }
 
-function buildDocDefinition(data) {
+async function buildDocDefinition(data) {
+  console.log(
+    "[CCTALK Export] buildDocDefinition called",
+  );
+
   const docDefinition = {
     content: [],
     styles: {
@@ -129,13 +161,30 @@ function buildDocDefinition(data) {
   };
 
   const title = data.title || "题目与解析";
+  console.log(
+    "[CCTALK Export] Adding title:",
+    title,
+  );
   docDefinition.content.push({
     text: title,
     style: "docTitle",
   });
+  console.log(
+    "[CCTALK Export] Content length after title:",
+    docDefinition.content.length,
+  );
 
   const sections = data.sections || [];
+  console.log(
+    "[CCTALK Export] Number of sections:",
+    sections.length,
+  );
+
   for (const section of sections) {
+    console.log(
+      "[CCTALK Export] Processing section:",
+      section.title,
+    );
     if (section.title) {
       docDefinition.content.push({
         text: section.title,
@@ -144,19 +193,30 @@ function buildDocDefinition(data) {
     }
 
     const questions = section.questions || [];
+    console.log(
+      "[CCTALK Export] Number of questions in section:",
+      questions.length,
+    );
+
     for (let i = 0; i < questions.length; i++) {
       const question = questions[i];
+      console.log(
+        "[CCTALK Export] Processing question",
+        i,
+        ":",
+        question.sequence || question.questionId,
+      );
 
       if (
         question.subQuestions &&
         question.subQuestions.length > 0
       ) {
-        addMaterialQuestion(
+        await addMaterialQuestion(
           docDefinition.content,
           question,
         );
       } else {
-        addQuestion(
+        await addQuestion(
           docDefinition.content,
           question,
         );
@@ -168,10 +228,17 @@ function buildDocDefinition(data) {
     }
   }
 
+  console.log(
+    "[CCTALK Export] Final content length:",
+    docDefinition.content.length,
+  );
   return docDefinition;
 }
 
-function addMaterialQuestion(content, question) {
+async function addMaterialQuestion(
+  content,
+  question,
+) {
   const stemHtml =
     question.questionContent?.text ||
     question.title ||
@@ -179,23 +246,38 @@ function addMaterialQuestion(content, question) {
   const stemText = htmlToText(stemHtml);
 
   if (stemText) {
-    content.push({
-      text: "材料：" + stemText,
-      style: "question",
-    });
+    const elements = await processTextWithImages(
+      stemText,
+      400,
+    );
+    const pdfContent = await elementsToPdfContent(
+      elements,
+      400,
+    );
+
+    // 添加"材料："前缀
+    if (pdfContent.length > 0) {
+      const firstElement = pdfContent[0];
+      if (firstElement.text) {
+        firstElement.text =
+          "材料：" + firstElement.text;
+      }
+    }
+
+    content.push(...pdfContent);
   }
 
   const subQuestions =
     question.subQuestions || [];
   for (let i = 0; i < subQuestions.length; i++) {
-    addQuestion(content, subQuestions[i]);
+    await addQuestion(content, subQuestions[i]);
     if (i < subQuestions.length - 1) {
       addQuestionGap(content);
     }
   }
 }
 
-function addQuestion(content, question) {
+async function addQuestion(content, question) {
   const seq =
     question.sequence ||
     question.questionId ||
@@ -210,10 +292,17 @@ function addQuestion(content, question) {
     const header = seq
       ? `${seq}. ${contentText}`
       : contentText;
-    content.push({
-      text: header,
-      style: "question",
-    });
+
+    const elements = await processTextWithImages(
+      header,
+      400,
+    );
+    const pdfContent = await elementsToPdfContent(
+      elements,
+      400,
+    );
+
+    content.push(...pdfContent);
   }
 
   const options = question.options || [];
@@ -230,10 +319,25 @@ function addQuestion(content, question) {
     const line = `${value}. ${optText}`.trim();
     const isCorrect = value && answers.has(value);
 
-    content.push({
-      text: formatOptionText(line, isCorrect),
-      style: "option",
-    });
+    const optionContent = formatOptionText(
+      line,
+      isCorrect,
+    );
+    if (
+      typeof optionContent === "object" &&
+      optionContent.text
+    ) {
+      content.push({
+        text: optionContent,
+        style: "option",
+      });
+    } else {
+      content.push({
+        text: optionContent,
+        color: isCorrect ? "#1B8A3B" : undefined,
+        style: "option",
+      });
+    }
   }
 
   const analysisHtml =
@@ -247,9 +351,59 @@ function addQuestion(content, question) {
     ) {
       finalAnalysis = "解析：\n" + analysisText;
     }
+
+    // 处理分析文本中的图片
+    const elements = await processTextWithImages(
+      finalAnalysis,
+      400,
+    );
+    const pdfContent = await elementsToPdfContent(
+      elements,
+      400,
+    );
+
+    // 创建带边框的分析框
     content.push({
-      text: finalAnalysis,
-      style: "analysis",
+      table: {
+        widths: ["*"],
+        body: [
+          [
+            {
+              stack: pdfContent,
+              fontSize: 10.5,
+              margin: [6, 6, 6, 6],
+              lineHeight: 1.3,
+            },
+          ],
+        ],
+        layout: {
+          hLineWidth: function () {
+            return 0.6;
+          },
+          vLineWidth: function () {
+            return 0.6;
+          },
+          hLineColor: function () {
+            return "#9AA0A6";
+          },
+          vLineColor: function () {
+            return "#9AA0A6";
+          },
+          paddingTop: function () {
+            return 0;
+          },
+          paddingBottom: function () {
+            return 0;
+          },
+          paddingLeft: function () {
+            return 0;
+          },
+          paddingRight: function () {
+            return 0;
+          },
+        },
+      },
+      margin: [4, 4, 0, 8],
     });
   }
 }
