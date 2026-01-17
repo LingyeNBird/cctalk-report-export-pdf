@@ -1,16 +1,27 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <meta charset="UTF-8">
-  <title>CCTALK作业导出</title>
-  <link rel="stylesheet" href="popup.css">
-</head>
-<body>
-  <div class="container">
-    <h1>CCTALK作业导出</h1>
-    <button id="exportBtn" class="export-btn">导出解析 PDF</button>
-    <p id="status" class="status">准备就绪</p>
-  </div>
-  <script src="popup.js"></script>
-</body>
+    <head>
+        <meta charset="UTF-8" />
+        <title>CCTALK作业导出</title>
+        <link rel="stylesheet" href="popup.css" />
+        <script src="../lib/pdfmake/pdfmake.min.js"></script>
+        <script src="../pdf-generator/utils.js"></script>
+        <script src="../pdf-generator/fonts/font-loader.js"></script>
+        <script src="../pdf-generator/generate.js"></script>
+    </head>
+    <body>
+        <div class="container">
+            <h1>CCTALK作业导出</h1>
+            <button
+                id="exportBtn"
+                class="export-btn"
+            >
+                导出解析 PDF
+            </button>
+            <p id="status" class="status">
+                准备就绪
+            </p>
+        </div>
+        <script src="popup.js"></script>
+    </body>
 </html>
