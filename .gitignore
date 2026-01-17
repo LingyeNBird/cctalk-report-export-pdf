@@ -3,3 +3,4 @@ paper_report.pdf
 .image_cache/
 .venv/
 __pycache__/
+.opencode/
