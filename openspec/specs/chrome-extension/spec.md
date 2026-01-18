@@ -1,9 +1,10 @@
-# Chrome Extension Specification
+# chrome-extension Specification
 
-## ADDED Requirements
-
+## Purpose
+TBD - created by archiving change add-chrome-extension. Update Purpose after archive.
+## Requirements
 ### Requirement: Chrome Extension Manifest Configuration
-The extension must provide a valid Chrome Extension Manifest V3 configuration that enables content script injection into CCTALK domains.
+The extension MUST provide a valid Chrome Extension Manifest V3 configuration that enables content script injection into CCTALK domains.
 
 #### Scenario: Extension installs successfully
 Given the extension manifest file is valid
@@ -27,7 +28,7 @@ And host_permissions should include "https://*.cctalk.com/*"
 ---
 
 ### Requirement: Data Interception and Extraction
-The extension must be able to capture homework report data from CCTALK pages either through XHR interception or page data extraction.
+The extension MUST be able to capture homework report data from CCTALK pages either through XHR interception or page data extraction.
 
 #### Scenario: XHR interception captures paper_report request
 Given the content script is running on a CCTALK homework report page
@@ -52,7 +53,7 @@ Or it should respond with null if no data is available
 ---
 
 ### Requirement: User Interface
-The extension must provide a user interface for triggering the export action.
+The extension MUST provide a user interface for triggering the export action.
 
 #### Scenario: Popup displays export button
 Given a user clicks the extension icon
@@ -82,7 +83,7 @@ And the status should show "正在生成PDF..."
 ---
 
 ### Requirement: Error Handling
-The extension must handle errors gracefully and provide user feedback.
+The extension MUST handle errors gracefully and provide user feedback.
 
 #### Scenario: XHR interception timeout
 Given the content script is waiting for XHR interception
@@ -108,3 +109,4 @@ Given the PDF generation is downloading an image from a URL
 When the download times out after 30 seconds
 Then the script should skip the image and continue generation
 Or it should show a placeholder text "[图片: ...]" in the PDF
+

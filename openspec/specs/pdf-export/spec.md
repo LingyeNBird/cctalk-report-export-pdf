@@ -1,9 +1,10 @@
-# PDF Export Specification
+# pdf-export Specification
 
-## ADDED Requirements
-
+## Purpose
+TBD - created by archiving change add-chrome-extension. Update Purpose after archive.
+## Requirements
 ### Requirement: PDF Generation from Report JSON
-The extension must be able to convert CCTALK homework report JSON data into a PDF document.
+The extension MUST be able to convert CCTALK homework report JSON data into a PDF document.
 
 #### Scenario: Generate PDF from valid report data
 Given valid report data with title, sections, and questions
@@ -23,7 +24,7 @@ And there should be 8pt margin before the question
 ---
 
 ### Requirement: Question Options Formatting
-The extension must format question options with color-coding for correct answers.
+The extension MUST format question options with color-coding for correct answers.
 
 #### Scenario: Options are listed with letter prefixes
 Given a question with options:
@@ -52,7 +53,7 @@ And only the text "人民安全" should appear in the PDF
 ---
 
 ### Requirement: Analysis Box Formatting
-The extension must format question analysis in a bordered box.
+The extension MUST format question analysis in a bordered box.
 
 #### Scenario: Analysis appears in bordered box
 Given a question with analysis: "解析：D。国务院新闻办公室于..."
@@ -79,7 +80,7 @@ And there should be 12pt left indentation for the text
 ---
 
 ### Requirement: Image Handling
-The extension must handle images in question content and analysis.
+The extension MUST handle images in question content and analysis.
 
 #### Scenario: Images in question content are included
 Given a question with an image tag: `<img src="https://example.com/image.png" alt="题目图片">`
@@ -112,7 +113,7 @@ And ignore query parameters when determining the extension
 ---
 
 ### Requirement: Material Questions (Questions with Sub-questions)
-The extension must handle material questions that contain multiple sub-questions.
+The extension MUST handle material questions that contain multiple sub-questions.
 
 #### Scenario: Material stem is displayed once
 Given a material question with stem "材料：根据以下材料回答1-3题"
@@ -140,7 +141,7 @@ Then there should be a smaller gap between them compared to separate questions
 ---
 
 ### Requirement: Chinese Font Support
-The extension must properly render Chinese characters in the PDF.
+The extension MUST properly render Chinese characters in PDF.
 
 #### Scenario: Chinese font is loaded
 Given the PDF generation library is initialized
@@ -166,7 +167,7 @@ And the font should be accessible to the PDF generation library
 ---
 
 ### Requirement: PDF Download
-The extension must trigger browser download of the generated PDF.
+The extension MUST trigger browser download of the generated PDF.
 
 #### Scenario: PDF is downloaded automatically
 Given PDF generation is complete
@@ -191,7 +192,7 @@ To prevent memory leaks
 ---
 
 ### Requirement: HTML Text Processing
-The extension must convert HTML content to plain text for PDF rendering.
+The extension MUST convert HTML content to plain text for PDF rendering.
 
 #### Scenario: Paragraph tags are converted to newlines
 Given HTML content: "<p>第一段</p><p>第二段</p>"
@@ -226,7 +227,7 @@ Then the result should be "第一句  第二句"
 ---
 
 ### Requirement: Performance and User Feedback
-The extension must provide feedback during PDF generation and handle large reports.
+The extension MUST provide feedback during PDF generation and handle large reports.
 
 #### Scenario: Loading indicator is shown during generation
 Given the user clicks the export button
@@ -251,3 +252,4 @@ Given a typical report with 50-100 questions
 When measuring generation time
 Then the PDF generation should complete within 10 seconds
 To avoid user frustration
+
